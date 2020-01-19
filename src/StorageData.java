@@ -1,7 +1,10 @@
 package src;
 
 import java.io.Serializable;
-
+/**
+ * @author Felix Dumbeck
+ * @version Alpha
+ */
 public class StorageData implements Serializable{
     private static final long serialVersionUID = -2609242046305226745L;
 

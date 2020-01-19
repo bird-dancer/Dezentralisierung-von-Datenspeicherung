@@ -53,10 +53,14 @@ public class EncryptedObject implements Serializable {
     }
 
     public Object decrypt(String password) throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, ClassNotFoundException {
+        return decrypt(this.encryptedObject, password);
+    }
+
+    public Object decrypt(byte [] encryptedObject, String password) throws InvalidKeyException, ClassNotFoundException,IllegalBlockSizeException, BadPaddingException, IOException, NoSuchAlgorithmException,NoSuchPaddingException {
         Key key = generateKey(password);
         Cipher cipher = Cipher.getInstance("AES");
         cipher.init(Cipher.DECRYPT_MODE, key);
-        return new ObjectInputStream(new ByteArrayInputStream(cipher.doFinal(this.encryptedObject))).readObject();
+        return new ObjectInputStream(new ByteArrayInputStream(cipher.doFinal(encryptedObject))).readObject();
     }
 
     public byte[] getEncryptedObject(){

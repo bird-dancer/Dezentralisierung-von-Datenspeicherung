@@ -10,12 +10,21 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+/**
+ * @author Felix Dumbeck
+ * @version Alpha
+ */
 public class Node {
     private int id;
     private String ip;
@@ -44,14 +53,15 @@ public class Node {
         // load node data
         if (this.nodeData.get("id") == null) {
             this.id = generateId();
-            if(startIp != null) joinCluster(startIp, startPort);
-            else{
+            if (startIp != null)
+                joinCluster(startIp, startPort);
+            else {
                 this.totalLength = 1;
                 this.cluster = 0;
             }
             saveNode();
-        } 
-        else  loadNode();
+        } else
+            loadNode();
         // refresh id every 5 minutes
         Timer timer = new Timer();
         timer.schedule(new TimerTask() {
@@ -70,15 +80,18 @@ public class Node {
 
     }
 
-    private void joinCluster(String startIp, int startPort) throws UnknownHostException, IOException, ClassNotFoundException {
+    private void joinCluster(String startIp, int startPort)
+            throws UnknownHostException, IOException, ClassNotFoundException {
         System.out.println("join");
         Client client = new Client();
-        Datapackage answer = client.sendDatapackage(startIp, startPort, new Datapackage(0, null, getAddress(), null, 0), true);
+        Datapackage answer = client.sendDatapackage(startIp, startPort, new Datapackage(0, null, getAddress(), null, 0),
+                true);
         System.out.println(answer.getId());
-        if(answer.getId() == -1)    answer = client.sendDatapackage(startIp, startPort, new Datapackage(0, null, getAddress(), null, answer.getCluster()), true);
+        if (answer.getId() == -1)
+            answer = client.sendDatapackage(startIp, startPort,
+                    new Datapackage(0, null, getAddress(), null, answer.getCluster()), true);
         List<List<Address>> list = (List<List<Address>>) answer.getPayload();
         System.out.println(list.get(0));
-
 
         this.clusterNodes = list.get(0);
 
@@ -88,23 +101,29 @@ public class Node {
 
         this.cluster = answer.getCluster();
         //
-        for(Address add : tempInterNodes){
-            answer = client.sendDatapackage(add.getIp(), add.getPort(), new Datapackage(3, String.valueOf(clusterNodes.size()), getAddress(), null, this.cluster), true);
-            if(answer != null)  this.interNodes.add((Address) answer.getPayload());
+        for (Address add : tempInterNodes) {
+            answer = client.sendDatapackage(add.getIp(), add.getPort(),
+                    new Datapackage(3, String.valueOf(clusterNodes.size()), getAddress(), null, this.cluster), true);
+            if (answer != null)
+                this.interNodes.add((Address) answer.getPayload());
         }
     }
 
     private void refreshIp() throws IOException, InterruptedException, ClassNotFoundException {
         String tempIp = getCurrentIp();
-        if(!this.ip.equals(tempIp)){
+        if (!this.ip.equals(tempIp)) {
             this.ip = tempIp;
             saveNode();
-            for(Address add : this.clusterNodes) new Client().sendDatapackage(new Socket(add.getIp(), add.getPort()), new Datapackage(1, null, getAddress(), null, add.cluster), false);
-            for(Address add : this.interNodes)   new Client().sendDatapackage(new Socket(add.getIp(), add.getPort()), new Datapackage(1, null, getAddress(), null, add.cluster), false);
+            for (Address add : this.clusterNodes)
+                new Client().sendDatapackage(new Socket(add.getIp(), add.getPort()),
+                        new Datapackage(1, null, getAddress(), null, add.cluster), false);
+            for (Address add : this.interNodes)
+                new Client().sendDatapackage(new Socket(add.getIp(), add.getPort()),
+                        new Datapackage(1, null, getAddress(), null, add.cluster), false);
         }
     }
 
-    private void loadNode(){
+    private void loadNode() {
         this.id = (int) this.nodeData.get("id");
         this.clusterNodes = (List<Address>) this.nodeData.get("clusterNodes");
         this.interNodes = (List<Address>) this.nodeData.get("interNodes");
@@ -118,7 +137,7 @@ public class Node {
         this.nodeData.store();
     }
 
-    private int generateId(){
+    private int generateId() {
         return String.valueOf(Math.random()).hashCode();
     }
 
@@ -138,27 +157,39 @@ public class Node {
                             final Socket tempSocket = serverSocket.accept();
 
                             // retrieving sent data
-                            ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(tempSocket.getInputStream()));
+                            ObjectInputStream ois = new ObjectInputStream(
+                                    new BufferedInputStream(tempSocket.getInputStream()));
                             Object recievedObject = ois.readObject();
 
                             if (recievedObject instanceof Datapackage) {
                                 Datapackage recievedDatapackage = (Datapackage) recievedObject;
                                 System.out.println(recievedDatapackage.getId());
-                                if(!passOn(recievedDatapackage, tempSocket)){
-                                    if(recievedDatapackage.getId() == 0)    integrateToCluster(recievedDatapackage, tempSocket);
-                                    else if(recievedDatapackage.getId() == 1)    changeIp(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 2)    addAddress(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 3)    coupleNodes(recievedDatapackage, tempSocket);
-                                    else if(recievedDatapackage.getId() == 4)    storeData(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 5 )  spreadData(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 6)   pushData(recievedDatapackage, tempSocket);
-                                    else if(recievedDatapackage.getId() == 7)   spreadDeleteData(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 8)   addStorage(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 9)   spreadAdd(recievedDatapackage);
-                                    else if(recievedDatapackage.getId() == 10)   deleteServerData(recievedDatapackage);
-                                }                           
-                             }
-                             ois.close();
+                                if (!passOn(recievedDatapackage, tempSocket)) {
+                                    if (recievedDatapackage.getId() == 0)
+                                        integrateToCluster(recievedDatapackage, tempSocket);
+                                    else if (recievedDatapackage.getId() == 1)
+                                        changeIp(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 2)
+                                        addAddress(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 3)
+                                        coupleNodes(recievedDatapackage, tempSocket);
+                                    else if (recievedDatapackage.getId() == 4)
+                                        storeData(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 5)
+                                        spreadData(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 6)
+                                        pushData(recievedDatapackage, tempSocket);
+                                    else if (recievedDatapackage.getId() == 7)
+                                        spreadDeleteData(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 8)
+                                        addStorage(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 9)
+                                        spreadAdd(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 10)
+                                        deleteServerData(recievedDatapackage);
+                                }
+                            }
+                            ois.close();
                         } catch (SocketException e) {
                             e.printStackTrace();
                         } catch (IOException e) {
@@ -174,43 +205,48 @@ public class Node {
     }
 
     private void addStorage(Datapackage datapackage) throws FileNotFoundException, IOException {
-        if(this.serverData.get(datapackage.getName()) == null) {
+        if (this.serverData.get(datapackage.getName()) == null) {
             this.serverData.put(datapackage.getName(), datapackage.getPayload());
-        }
-        else if(((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(datapackage.getOwner())) {
-            if(datapackage.getPayload() instanceof List){
-                ((List<byte[]>) ((Datapackage) this.serverData.get(datapackage.getName())).getPayload()).addAll((List<byte[]>) datapackage.getPayload());
+        } else if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner()
+                .equals(datapackage.getOwner())) {
+            if (datapackage.getPayload() instanceof List) {
+                ((List<byte[]>) ((Datapackage) this.serverData.get(datapackage.getName())).getPayload())
+                        .addAll((List<byte[]>) datapackage.getPayload());
             }
         }
         this.serverData.store();
     }
 
     private void spreadAdd(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
-        spread(new Datapackage(8, datapackage.getName(), datapackage.getPayload(), datapackage.getOwner(), this.cluster));
+        spread(new Datapackage(8, datapackage.getName(), datapackage.getPayload(), datapackage.getOwner(),
+                this.cluster));
         addStorage(datapackage);
     }
 
     private void spread(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
         Client client = new Client();
-        for(Address add : this.clusterNodes){
+        for (Address add : this.clusterNodes) {
             System.out.println(add.getId());
             client.sendDatapackage(add.getIp(), 8000, datapackage, false);
             System.out.println("yay");
         }
     }
 
-    private void deleteServerData(Datapackage datapackage){
-        if(((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(datapackage.getOwner()))    this.serverData.remove(datapackage.getName());
+    private void deleteServerData(Datapackage datapackage) {
+        if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(datapackage.getOwner()))
+            this.serverData.remove(datapackage.getName());
     }
 
-    private void spreadDeleteData(Datapackage datapackage)throws ClassNotFoundException, UnknownHostException, IOException {
+    private void spreadDeleteData(Datapackage datapackage)
+            throws ClassNotFoundException, UnknownHostException, IOException {
         spread(new Datapackage(9, datapackage.getName(), null, datapackage.getOwner(), this.cluster));
         deleteServerData(datapackage);
     }
 
     private void pushData(Datapackage datapackage, Socket socket) throws ClassNotFoundException, IOException {
         System.out.println("push: " + (this.serverData.get(datapackage.getName()) == null));
-        new Client().sendDatapackage(socket, new Datapackage(-1, datapackage.getName(), this.serverData.get(datapackage.getName()), null, this.cluster), false);
+        new Client().sendDatapackage(socket, new Datapackage(-1, datapackage.getName(),
+                this.serverData.get(datapackage.getName()), null, this.cluster), false);
     }
 
     private void spreadData(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
@@ -230,39 +266,43 @@ public class Node {
         Collections.sort(this.clusterNodes, new SortAddress());
         Address address = this.clusterNodes.get(Integer.valueOf(datapackage.getName()) - 1);
         client.sendDatapackage(socket, new Datapackage(-1, null, address, null, this.cluster), false);
-        client.sendDatapackage(address.getIp(), address.getPort(), new Datapackage(2, null, datapackage.getPayload(), null, ((Address) datapackage.getPayload()).getCluster()), false);
+        client.sendDatapackage(address.getIp(), address.getPort(), new Datapackage(2, null, datapackage.getPayload(),
+                null, ((Address) datapackage.getPayload()).getCluster()), false);
     }
 
-    private void addAddress(Datapackage datapackage){
+    private void addAddress(Datapackage datapackage) {
         Address address = (Address) datapackage.getPayload();
-        if(address.getCluster() == this.cluster){
+        if (address.getCluster() == this.cluster) {
             this.clusterNodes.add(address);
             return;
         }
         this.interNodes.add(address);
     }
 
-    private void changeIp(Datapackage datapackage){
+    private void changeIp(Datapackage datapackage) {
         Address changingAddress = (Address) datapackage.getPayload();
-        if(changingAddress.getCluster() == this.cluster){
-            for(Address add : this.clusterNodes){
-                if(add.getId() == changingAddress.getId()){
+        if (changingAddress.getCluster() == this.cluster) {
+            for (Address add : this.clusterNodes) {
+                if (add.getId() == changingAddress.getId()) {
                     add.setId(changingAddress.getId());
                     return;
                 }
             }
             return;
         }
-        for(Address add : this.interNodes){
-            if(add.getId() == changingAddress.getId()){
+        for (Address add : this.interNodes) {
+            if (add.getId() == changingAddress.getId()) {
                 add.setId(changingAddress.getId());
             }
         }
     }
 
-    private void integrateToCluster(Datapackage datapackage, Socket socket) throws ClassNotFoundException, UnknownHostException, IOException {
+    private void integrateToCluster(Datapackage datapackage, Socket socket)
+            throws ClassNotFoundException, UnknownHostException, IOException {
         Client client = new Client();
-        for(Address add : this.clusterNodes)    client.sendDatapackage(add.getIp(), add.getPort(), new Datapackage(2, null, datapackage.getPayload(), null, this.cluster), false);
+        for (Address add : this.clusterNodes)
+            client.sendDatapackage(add.getIp(), add.getPort(),
+                    new Datapackage(2, null, datapackage.getPayload(), null, this.cluster), false);
         List<List<Address>> list = (List<List<Address>>) new ArrayList();
         list.add(this.clusterNodes);
         list.add(this.interNodes);
@@ -271,23 +311,28 @@ public class Node {
         saveNode();
     }
 
-    private boolean passOn(Datapackage datapackage, Socket socket) throws ClassNotFoundException, UnknownHostException, IOException {
-        if(datapackage.getId() == 0){
-            //let node join this cluster
-            if(this.clusterNodes.size() < 9)    return false;
-            //pass node on to the last cluster
-            if(this.cluster < this.totalLength-1){
-                new Client().sendDatapackage(socket, new Datapackage(-1, null, null, null, null, this.totalLength), false);
+    private boolean passOn(Datapackage datapackage, Socket socket)
+            throws ClassNotFoundException, UnknownHostException, IOException {
+        if (datapackage.getId() == 0) {
+            // let node join this cluster
+            if (this.clusterNodes.size() < 9)
+                return false;
+            // pass node on to the last cluster
+            if (this.cluster < this.totalLength - 1) {
+                new Client().sendDatapackage(socket, new Datapackage(-1, null, null, null, null, this.totalLength),
+                        false);
                 return false;
             }
-            //let node create a new cluster
+            // let node create a new cluster
             Collections.sort(this.clusterNodes, new SortAddress());
             Address recipient = this.clusterNodes.get(0);
-            new Client().sendDatapackage(recipient.getIp(), recipient.getPort(), new Datapackage(2, null, datapackage.getPayload(), null, this.totalLength+1), false);
+            new Client().sendDatapackage(recipient.getIp(), recipient.getPort(),
+                    new Datapackage(2, null, datapackage.getPayload(), null, this.totalLength + 1), false);
             return false;
         }
-        if(datapackage.getCluster() == this.cluster)  return false;
-        if(datapackage.getCluster() > this.totalLength){
+        if (datapackage.getCluster() == this.cluster)
+            return false;
+        if (datapackage.getCluster() > this.totalLength) {
             this.totalLength += 1;
             return false;
         }
@@ -295,12 +340,13 @@ public class Node {
         return true;
     }
 
-    private Address getAddress(){
+    private Address getAddress() {
         return new Address(this.id, this.ip, this.port, this.cluster);
     }
 
     /**
      * calls a Ruby-script to get own ipv6 address
+     * 
      * @return the current ip as a String
      * @throws IOException
      * @throws InterruptedException
@@ -312,11 +358,19 @@ public class Node {
         return processIn.readLine();
     }
 
-
-    public static void main(String[] args)throws FileNotFoundException, ClassNotFoundException, IOException, InterruptedException {
+    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException, InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         Node node = new Node(null, 8000);
         System.out.println(node.getCurrentIp());
         System.out.println(node.id);
         System.out.println(node.clusterNodes.get(0).getId());
-    }
+
+        Address add = node.getAddress();
+        add.setPort(node.port+1);
+        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port+1, add);
+        client.setPassword("test");
+        client.setUser("felix");
+
+        //client.storeFile("", "test.txt");
+        client.pullFile("", "test.txt");
+       }
 }

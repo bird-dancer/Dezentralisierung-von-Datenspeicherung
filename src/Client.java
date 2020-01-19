@@ -23,7 +23,10 @@ import java.util.List;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-
+/**
+ * @author Felix Dumbeck
+ * @version Alpha
+ */
 public class Client {
     private List<Address> clusterNodes;
     private List<Address> interNodes;
@@ -40,15 +43,13 @@ public class Client {
 
     }
 
-    public Client(List<Address> clusterNodes, List<Address> interNodes, int currentCluster, int totalLength, int port,Address clientAddress, String user, List<StorageData> sd) {
+    public Client(List<Address> clusterNodes, List<Address> interNodes, int currentCluster, int totalLength, int port,Address clientAddress) {
         this.clusterNodes = clusterNodes;
         this.interNodes = interNodes;
         this.currentCluster = currentCluster;
         this.totalLength = totalLength;
         this.port = port;
         this.clientAddress = clientAddress;
-        this.user = user;
-        this.sd = sd;
     }
 
     public void setPassword(String password) throws NoSuchAlgorithmException {
@@ -100,6 +101,7 @@ public class Client {
     }
 
     public Datapackage request(Datapackage datapackage)throws ClassNotFoundException, UnknownHostException, IOException {
+        System.out.println("request: " + datapackage.getName());
         int cluster = datapackage.getCluster();
         if (cluster == this.currentCluster) {
             for (Address add : this.clusterNodes) {
@@ -160,15 +162,14 @@ public class Client {
     }
 
     public void getFileSystem() throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException,InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        Client client = new Client();
-        List<EncryptedObject> answer;
+        List<byte[]> answer;
         for(Address add : this.clusterNodes){
-            if(client.serverIsAvailable(add.getIp(), add.getPort())){
-                answer = (List<EncryptedObject>) client.sendDatapackage(add.getIp(), add.getPort(), new Datapackage(6, nameHash("fileSystem"), null, null, this.currentCluster), true).getPayload();
+            if(serverIsAvailable(add.getIp(), add.getPort())){
+                answer = (List<byte[]>) sendDatapackage(add.getIp(), add.getPort(), new Datapackage(6, nameHash("fileSystem"), null, null, this.currentCluster), true).getPayload();
                 if(answer != null){
                     this.sd = new ArrayList<>();
-                    for(EncryptedObject eo : answer){
-                        StorageData storageData = (StorageData) eo.decrypt(this.passwordHash);
+                    for(byte[] eo : answer){
+                        StorageData storageData = (StorageData) new EncryptedObject().decrypt(eo, this.passwordHash);
                         this.sd.add(storageData);
                     }
                     return;
@@ -180,7 +181,9 @@ public class Client {
     public boolean pullFile(String fileLocation, String fileName, int cluster, String validationHash)throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         Datapackage answer = request(new Datapackage(6, nameHash(fileName), null, fileName, clientAddress, cluster));
         //decrypting
-        byte[] decryptedFile = (byte[]) ((EncryptedObject) answer.getPayload()).decrypt(passwordHash);
+        System.out.println("pulling: " + answer.getPayload().getClass());
+        byte[] decryptedFile = (byte[]) ((EncryptedObject) ((Datapackage) answer.getPayload()).getPayload())
+                .decrypt(passwordHash);
         //validation
         if(!contentHash(decryptedFile).equals(validationHash))    return false;
         //storing
@@ -195,9 +198,11 @@ public class Client {
     }
 
     public boolean pullFile(String fileLocation, String fileName) throws NoSuchAlgorithmException, ClassNotFoundException, UnknownHostException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+        getFileSystem();
         for(StorageData s : this.sd){
             if(s.getFileHash().equals(nameHash(fileName))){
-                return pullFile(fileLocation, nameHash(fileName), s.getStorageCluster(), s.getValidationHash());
+                System.out.println("name: " + nameHash(fileName) + "  clu: " + s.getStorageCluster() + "  vali: " + s.getValidationHash());
+                return pullFile(fileLocation, fileName, s.getStorageCluster(), s.getValidationHash());
             }
         }
         return false;
@@ -206,7 +211,7 @@ public class Client {
     public void sendSoftDatapackage(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
         int cluster = datapackage.getCluster();
         int distance = Math.abs(cluster - this.currentCluster);
-        Address targetNode = null;
+        Address targetNode = this.clusterNodes.get(0);
         for (int i = 0; i < this.interNodes.size(); i++) {
             if ((Math.abs(this.interNodes.get(i).getCluster() - cluster)) < distance) {
                 distance = (this.interNodes.get(i).getCluster() - cluster);

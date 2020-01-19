@@ -3,6 +3,11 @@ package src;
 import java.io.Serializable;
 import java.util.ArrayList;
 
+/**
+ * @author Felix Dumbeck
+ * @version Alpha
+ */
+
 public class Datapackage implements Serializable{
     private static final long serialVersionUID = -1922732218549212535L;
     
