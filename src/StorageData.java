@@ -1,18 +1,19 @@
 package src;
 
 import java.io.Serializable;
+
 /**
  * @author Felix Dumbeck
  * @version Alpha
  */
-public class StorageData implements Serializable{
+public class StorageData implements Serializable {
     private static final long serialVersionUID = -2609242046305226745L;
 
     private String fileHash;
     private String validationHash;
     private int storageCluster;
 
-    public StorageData(String fileHash, String validationHash, int storageCluster){
+    public StorageData(String fileHash, String validationHash, int storageCluster) {
         this.fileHash = fileHash;
         this.validationHash = validationHash;
         this.storageCluster = storageCluster;
@@ -42,5 +43,4 @@ public class StorageData implements Serializable{
         this.storageCluster = storageCluster;
     }
 
-    
 }

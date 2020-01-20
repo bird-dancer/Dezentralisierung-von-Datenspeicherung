@@ -1,23 +1,25 @@
 package src;
 
 import java.io.Serializable;
+
 /**
  * @author Felix Dumbeck
  * @version Alpha
  */
-public class Address implements Serializable{
+public class Address implements Serializable {
     private static final long serialVersionUID = 8737221118248928508L;
     protected int id;
     protected int cluster;
     protected String ip;
     protected int port;
+
     /**
      * 
      * @param id
      * @param ip
      * @param port
      */
-    public Address(int id, String ip, int port, int cluster){
+    public Address(int id, String ip, int port, int cluster) {
         this.id = id;
         this.ip = ip;
         this.port = port;
@@ -48,8 +50,8 @@ public class Address implements Serializable{
         this.port = port;
     }
 
-    public int getCluster(){
+    public int getCluster() {
         return this.cluster;
     }
-    
+
 }

@@ -27,18 +27,20 @@ public class EncryptedObject implements Serializable {
 
     private byte[] encryptedObject;
 
-    public EncryptedObject(){
-        
+    public EncryptedObject() {
+
     }
 
-    public EncryptedObject(Object decryptedObject, String password) throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public EncryptedObject(Object decryptedObject, String password) throws IOException, InvalidKeyException,
+            NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutput oo = new ObjectOutputStream(baos);
         oo.writeObject(decryptedObject);
         this.encryptedObject = encrypt(baos.toByteArray(), password);
     }
 
-    private byte[] encrypt(byte[] byteArray, String password) throws NoSuchAlgorithmException, NoSuchPaddingException,InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+    private byte[] encrypt(byte[] byteArray, String password) throws NoSuchAlgorithmException, NoSuchPaddingException,
+            InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
         Key key = generateKey(password);
         Cipher cipher = Cipher.getInstance("AES");
         cipher.init(Cipher.ENCRYPT_MODE, key);
@@ -47,23 +49,27 @@ public class EncryptedObject implements Serializable {
 
     private Key generateKey(String password) {
         String key = password;
-        while(key.length() < 32)    key += key;
+        while (key.length() < 32)
+            key += key;
         key = key.substring(0, 32);
         return new SecretKeySpec(key.getBytes(Charset.forName("UTF-8")), "AES");
     }
 
-    public Object decrypt(String password) throws IOException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, ClassNotFoundException {
+    public Object decrypt(String password) throws IOException, InvalidKeyException, NoSuchAlgorithmException,
+            NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, ClassNotFoundException {
         return decrypt(this.encryptedObject, password);
     }
 
-    public Object decrypt(byte [] encryptedObject, String password) throws InvalidKeyException, ClassNotFoundException,IllegalBlockSizeException, BadPaddingException, IOException, NoSuchAlgorithmException,NoSuchPaddingException {
+    public Object decrypt(byte[] encryptedObject, String password)
+            throws InvalidKeyException, ClassNotFoundException, IllegalBlockSizeException, BadPaddingException,
+            IOException, NoSuchAlgorithmException, NoSuchPaddingException {
         Key key = generateKey(password);
         Cipher cipher = Cipher.getInstance("AES");
         cipher.init(Cipher.DECRYPT_MODE, key);
         return new ObjectInputStream(new ByteArrayInputStream(cipher.doFinal(encryptedObject))).readObject();
     }
 
-    public byte[] getEncryptedObject(){
+    public byte[] getEncryptedObject() {
         return this.encryptedObject;
     }
 }

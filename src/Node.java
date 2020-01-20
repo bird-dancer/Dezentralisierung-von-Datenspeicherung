@@ -21,6 +21,7 @@ import java.util.TimerTask;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+
 /**
  * @author Felix Dumbeck
  * @version Alpha
@@ -196,6 +197,8 @@ public class Node {
                             e.printStackTrace();
                         } catch (ClassNotFoundException e) {
                             e.printStackTrace();
+                        } catch (NoSuchAlgorithmException e) {
+                            e.printStackTrace();
                         }
                     }
                 }
@@ -232,13 +235,14 @@ public class Node {
         }
     }
 
-    private void deleteServerData(Datapackage datapackage) {
-        if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(datapackage.getOwner()))
+    private void deleteServerData(Datapackage datapackage) throws NoSuchAlgorithmException {
+        String validation = new Hash().hash(datapackage.getName() + datapackage.getOwner());
+        if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(validation))
             this.serverData.remove(datapackage.getName());
     }
 
     private void spreadDeleteData(Datapackage datapackage)
-            throws ClassNotFoundException, UnknownHostException, IOException {
+            throws ClassNotFoundException, UnknownHostException, IOException, NoSuchAlgorithmException {
         spread(new Datapackage(9, datapackage.getName(), null, datapackage.getOwner(), this.cluster));
         deleteServerData(datapackage);
     }
@@ -358,19 +362,22 @@ public class Node {
         return processIn.readLine();
     }
 
-    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException, InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,
+            InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
+            IllegalBlockSizeException, BadPaddingException {
         Node node = new Node(null, 8000);
         System.out.println(node.getCurrentIp());
         System.out.println(node.id);
         System.out.println(node.clusterNodes.get(0).getId());
 
         Address add = node.getAddress();
-        add.setPort(node.port+1);
-        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port+1, add);
+        add.setPort(node.port + 1);
+        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port + 1,
+                add);
         client.setPassword("test");
         client.setUser("felix");
 
-        //client.storeFile("", "test.txt");
+        // client.storeFile("", "test.txt");
         client.pullFile("", "test.txt");
-       }
+    }
 }

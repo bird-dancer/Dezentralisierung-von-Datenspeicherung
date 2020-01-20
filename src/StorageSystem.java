@@ -18,27 +18,33 @@ import java.util.HashMap;
 
 public class StorageSystem implements Serializable {
     private static final long serialVersionUID = -3577119964736812050L;
-    private File storageFile;   //stores the hashtable inside of a file in the file system
-    private HashMap<String, Object> hm; //creates an key-value-pair the key is a String, whilst the value can be any serializable object
+    private File storageFile; // stores the hashtable inside of a file in the file system
+    private HashMap<String, Object> hm; // creates an key-value-pair the key is a String, whilst the value can be any
+                                        // serializable object
+
     /**
      * 
      * @param location where the <code>storageFile</code> should be stored
-     * @param fileName name of the <code>storageFile</code> it should include the filename extesion 
+     * @param fileName name of the <code>storageFile</code> it should include the
+     *                 filename extesion
      * @throws FileNotFoundException
      * @throws ClassNotFoundException
      * @throws IOException
      */
-    public StorageSystem(String location, String fileName) throws FileNotFoundException, ClassNotFoundException, IOException {
-        this.storageFile = new File(location +  fileName);
-        if (new File(location +  fileName).exists()) {
+    public StorageSystem(String location, String fileName)
+            throws FileNotFoundException, ClassNotFoundException, IOException {
+        this.storageFile = new File(location + fileName);
+        if (new File(location + fileName).exists()) {
             load(location, fileName);
             return;
         }
         this.hm = new HashMap<>();
-        this.storageFile = new File(location +  fileName);
+        this.storageFile = new File(location + fileName);
     }
+
     /**
      * stores an object belonging to a key inside of the hashtable
+     * 
      * @param key
      * @param value
      * @throws FileNotFoundException
@@ -50,6 +56,7 @@ public class StorageSystem implements Serializable {
 
     /**
      * retrieves an object belonging to the key from the hashtable
+     * 
      * @param key
      * @return the stored object belonging to the <code>key</code>
      */
@@ -59,6 +66,7 @@ public class StorageSystem implements Serializable {
 
     /**
      * writes the hashtable to the storageFile
+     * 
      * @throws FileNotFoundException
      * @throws IOException
      */
@@ -71,22 +79,27 @@ public class StorageSystem implements Serializable {
 
     /**
      * saves the hashtable from a file inside of this.hashtable
+     * 
      * @param location
      * @param fileName
      * @throws FileNotFoundException
      * @throws IOException
      * @throws ClassNotFoundException
      */
-    public void load(String location, String fileName) throws FileNotFoundException, IOException, ClassNotFoundException {
-        ObjectInputStream ois = new ObjectInputStream(new BufferedInputStream(new FileInputStream(location +  fileName)));
+    public void load(String location, String fileName)
+            throws FileNotFoundException, IOException, ClassNotFoundException {
+        ObjectInputStream ois = new ObjectInputStream(
+                new BufferedInputStream(new FileInputStream(location + fileName)));
         this.hm = (HashMap<String, Object>) ois.readObject();
         ois.close();
     }
+
     /**
      * removes one item from the storage hash map
+     * 
      * @param key key of the value to be deleted
      */
-    public void remove(String key){
+    public void remove(String key) {
         this.hm.remove(key);
     }
 }

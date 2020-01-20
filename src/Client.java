@@ -23,6 +23,7 @@ import java.util.List;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+
 /**
  * @author Felix Dumbeck
  * @version Alpha
@@ -37,13 +38,14 @@ public class Client {
     private Datapackage recievedDatapackage;
     private String user;
     private String passwordHash;
-    private List<StorageData> sd;
+    private List<StorageData> fileSystem;
 
-    public Client(){
+    public Client() {
 
     }
 
-    public Client(List<Address> clusterNodes, List<Address> interNodes, int currentCluster, int totalLength, int port,Address clientAddress) {
+    public Client(List<Address> clusterNodes, List<Address> interNodes, int currentCluster, int totalLength, int port,
+            Address clientAddress) {
         this.clusterNodes = clusterNodes;
         this.interNodes = interNodes;
         this.currentCluster = currentCluster;
@@ -56,7 +58,8 @@ public class Client {
         this.passwordHash = new Hash().hash(password);
     }
 
-    public Datapackage sendDatapackage(String ip, int port, Datapackage payload, boolean expectingAnswer) throws ClassNotFoundException, UnknownHostException, IOException {
+    public Datapackage sendDatapackage(String ip, int port, Datapackage payload, boolean expectingAnswer)
+            throws ClassNotFoundException, UnknownHostException, IOException {
         Socket socket = new Socket();
         socket.connect(new InetSocketAddress(ip, port));
         ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
@@ -79,7 +82,8 @@ public class Client {
         return null;
     }
 
-    public Datapackage sendDatapackage(Socket socket, Datapackage payload, boolean expectingAnswer)throws IOException, ClassNotFoundException {
+    public Datapackage sendDatapackage(Socket socket, Datapackage payload, boolean expectingAnswer)
+            throws IOException, ClassNotFoundException {
         ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
         oos.writeObject(payload);
         oos.flush();
@@ -100,7 +104,8 @@ public class Client {
         return null;
     }
 
-    public Datapackage request(Datapackage datapackage)throws ClassNotFoundException, UnknownHostException, IOException {
+    public Datapackage request(Datapackage datapackage)
+            throws ClassNotFoundException, UnknownHostException, IOException {
         System.out.println("request: " + datapackage.getName());
         int cluster = datapackage.getCluster();
         if (cluster == this.currentCluster) {
@@ -148,29 +153,37 @@ public class Client {
         return this.recievedDatapackage;
     }
 
-    public void storeFile(String fileLocation, String fileName)throws InvalidKeyException, ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
-        int location = (int) (Math.random()*totalLength);
+    public void storeFile(String fileLocation, String fileName)
+            throws InvalidKeyException, ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException,
+            NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
+        int location = (int) (Math.random() * totalLength);
         byte[] byteFile = Files.readAllBytes(Paths.get(fileLocation + fileName));
-        sendSoftDatapackage(new Datapackage(5, nameHash(fileName), new EncryptedObject(byteFile, this.passwordHash), generateOwner(fileName), null, location));
+        String nameHash = nameHash(fileName);
+        sendSoftDatapackage(new Datapackage(5, nameHash, new EncryptedObject(byteFile, this.passwordHash),
+                new Hash().hash(nameHash + generateOwner(fileName)), null, location));
 
         List<byte[]> storageDatas = new ArrayList<byte[]>();
-        storageDatas.add(new EncryptedObject(new StorageData(nameHash(fileName), contentHash(byteFile), location), this.passwordHash).getEncryptedObject());
+        storageDatas.add(new EncryptedObject(new StorageData(nameHash(fileName), contentHash(byteFile), location),
+                this.passwordHash).getEncryptedObject());
 
-        for(Address add : this.clusterNodes){
-            sendDatapackage(add.getIp(), add.getPort(), new Datapackage(8, nameHash("fileSystem"), storageDatas, generateOwner("fileSystem"), this.currentCluster), false);
+        for (Address add : this.clusterNodes) {
+            sendDatapackage(add.getIp(), add.getPort(), new Datapackage(8, nameHash("fileSystem"), storageDatas,
+                    generateOwner("fileSystem"), this.currentCluster), false);
         }
     }
 
-    public void getFileSystem() throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException,InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public void getFileSystem() throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException,
+            IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         List<byte[]> answer;
-        for(Address add : this.clusterNodes){
-            if(serverIsAvailable(add.getIp(), add.getPort())){
-                answer = (List<byte[]>) sendDatapackage(add.getIp(), add.getPort(), new Datapackage(6, nameHash("fileSystem"), null, null, this.currentCluster), true).getPayload();
-                if(answer != null){
-                    this.sd = new ArrayList<>();
-                    for(byte[] eo : answer){
+        for (Address add : this.clusterNodes) {
+            if (serverIsAvailable(add.getIp(), add.getPort())) {
+                answer = (List<byte[]>) sendDatapackage(add.getIp(), add.getPort(),
+                        new Datapackage(6, nameHash("fileSystem"), null, null, this.currentCluster), true).getPayload();
+                if (answer != null) {
+                    this.fileSystem = new ArrayList<>();
+                    for (byte[] eo : answer) {
                         StorageData storageData = (StorageData) new EncryptedObject().decrypt(eo, this.passwordHash);
-                        this.sd.add(storageData);
+                        this.fileSystem.add(storageData);
                     }
                     return;
                 }
@@ -178,37 +191,66 @@ public class Client {
         }
     }
 
-    public boolean pullFile(String fileLocation, String fileName, int cluster, String validationHash)throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public void deleteFile(String fileName)
+            throws InvalidKeyException, ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException,
+            NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
+        if (this.fileSystem == null)
+            getFileSystem();
+        for (StorageData s : this.fileSystem) {
+            if (s.getFileHash().equals(nameHash(fileName))) {
+                System.out.println("name: " + nameHash(fileName) + "  clu: " + s.getStorageCluster() + "  vali: "
+                        + s.getValidationHash());
+                deleteFile(fileName, s.getStorageCluster());
+                return;
+            }
+        }
+    }
+
+    public void deleteFile(String fileName, int cluster)
+            throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException {
+        request(new Datapackage(10, nameHash(fileName), null, generateOwner(fileName), clientAddress, cluster));
+    }
+
+    public boolean pullFile(String fileLocation, String fileName, int cluster, String validationHash)
+            throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException,
+            InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         Datapackage answer = request(new Datapackage(6, nameHash(fileName), null, fileName, clientAddress, cluster));
-        //decrypting
+        // decrypting
         System.out.println("pulling: " + answer.getPayload().getClass());
         byte[] decryptedFile = (byte[]) ((EncryptedObject) ((Datapackage) answer.getPayload()).getPayload())
                 .decrypt(passwordHash);
-        //validation
-        if(!contentHash(decryptedFile).equals(validationHash))    return false;
-        //storing
+        // validation
+        if (!contentHash(decryptedFile).equals(validationHash))
+            return false;
+        // storing
         InputStream is = new ByteArrayInputStream(decryptedFile);
         FileOutputStream fos = new FileOutputStream(fileLocation + fileName);
         byte[] buffer = new byte[1024];
         int length;
-        while ((length = is.read(buffer)) > 0)  fos.write(buffer, 0, length);
+        while ((length = is.read(buffer)) > 0)
+            fos.write(buffer, 0, length);
         is.close();
         fos.close();
         return true;
     }
 
-    public boolean pullFile(String fileLocation, String fileName) throws NoSuchAlgorithmException, ClassNotFoundException, UnknownHostException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
-        getFileSystem();
-        for(StorageData s : this.sd){
-            if(s.getFileHash().equals(nameHash(fileName))){
-                System.out.println("name: " + nameHash(fileName) + "  clu: " + s.getStorageCluster() + "  vali: " + s.getValidationHash());
+    public boolean pullFile(String fileLocation, String fileName)
+            throws NoSuchAlgorithmException, ClassNotFoundException, UnknownHostException, IOException,
+            InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+        if (this.fileSystem == null)
+            getFileSystem();
+        for (StorageData s : this.fileSystem) {
+            if (s.getFileHash().equals(nameHash(fileName))) {
+                System.out.println("name: " + nameHash(fileName) + "  clu: " + s.getStorageCluster() + "  vali: "
+                        + s.getValidationHash());
                 return pullFile(fileLocation, fileName, s.getStorageCluster(), s.getValidationHash());
             }
         }
         return false;
     }
 
-    public void sendSoftDatapackage(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
+    public void sendSoftDatapackage(Datapackage datapackage)
+            throws ClassNotFoundException, UnknownHostException, IOException {
         int cluster = datapackage.getCluster();
         int distance = Math.abs(cluster - this.currentCluster);
         Address targetNode = this.clusterNodes.get(0);
@@ -237,7 +279,7 @@ public class Client {
         }
     }
 
-    public void setUser(String user){
+    public void setUser(String user) {
         this.user = user;
     }
 
@@ -248,16 +290,16 @@ public class Client {
     private String nameHash(String fileName) throws NoSuchAlgorithmException {
         return new Hash().hash(fileName + this.user + this.passwordHash);
     }
-    
+
     private String generateOwner(String fileName) throws NoSuchAlgorithmException {
-        return new Hash().hash(fileName + new Hash().hash(this.user) + this.passwordHash);
+        return new Hash().hash(fileName + new Hash().hash(this.user) + new Hash().hash(passwordHash));
     }
 
-    private String contentHash(byte [] arr) throws NoSuchAlgorithmException {
+    private String contentHash(byte[] arr) throws NoSuchAlgorithmException {
         return new Hash().hash(arr);
     }
 
-    public boolean serverIsAvailable(String ip, int port){
+    public boolean serverIsAvailable(String ip, int port) {
         try {
             Socket testSocket = new Socket();
             testSocket.connect(new InetSocketAddress(ip, port));
