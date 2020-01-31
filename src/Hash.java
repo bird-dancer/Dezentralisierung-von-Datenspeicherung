@@ -1,5 +1,9 @@
 package src;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -22,6 +26,13 @@ public class Hash {
         for (byte b : bytes)
             sb.append(String.format("%02x", b));
         return sb.toString();
+    }
+
+    public String hash(Object object) throws IOException, NoSuchAlgorithmException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ObjectOutput oo = new ObjectOutputStream(baos);
+        oo.writeObject(object);
+        return hash(baos.toByteArray());
     }
 
     /**

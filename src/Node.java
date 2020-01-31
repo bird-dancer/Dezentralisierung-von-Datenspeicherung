@@ -2,10 +2,12 @@ package src;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -15,6 +17,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -188,6 +191,8 @@ public class Node {
                                         spreadAdd(recievedDatapackage);
                                     else if (recievedDatapackage.getId() == 10)
                                         deleteServerData(recievedDatapackage);
+                                    else if (recievedDatapackage.getId() == 11)
+                                        helpReconfigure(recievedDatapackage);
                                 }
                             }
                             ois.close();
@@ -204,6 +209,23 @@ public class Node {
                 }
             });
             listeningThread.start();
+        }
+    }
+
+    private void helpReconfigure(Datapackage datapackage){
+
+    }
+
+    private void reConfigure() throws NoSuchAlgorithmException, IOException, ClassNotFoundException {
+        
+        String controlHash = new Hash().hash(this.serverData);
+        Datapackage answer;
+        Client client = new Client();
+        for(Address add : this.clusterNodes){
+            answer = client.sendDatapackage(add.getIp(), 8000, new Datapackage(11, null, null, null, this.cluster), true);
+            if(!answer.getPayload().equals(controlHash)){
+
+            }
         }
     }
 
@@ -356,28 +378,42 @@ public class Node {
      * @throws InterruptedException
      */
     private String getCurrentIp() throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec("ruby src/ip.rb");
+        Process process = Runtime.getRuntime().exec("ruby ip.rb");
         process.waitFor();
         BufferedReader processIn = new BufferedReader(new InputStreamReader(process.getInputStream()));
         return processIn.readLine();
     }
 
-    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,
-            InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
-            IllegalBlockSizeException, BadPaddingException {
-        Node node = new Node(null, 8000);
+    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Enter start ip: ");
+        String startIp = scanner.nextLine();
+        if(startIp.equals("skip"))  startIp = null;
+
+        Node node = new Node(startIp, 8000);
         System.out.println(node.getCurrentIp());
         System.out.println(node.id);
         System.out.println(node.clusterNodes.get(0).getId());
 
         Address add = node.getAddress();
         add.setPort(node.port + 1);
-        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port + 1,
-                add);
-        client.setPassword("test");
-        client.setUser("felix");
+        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port + 1, add);
+        System.out.println("name: ");
+        client.setUser(scanner.nextLine());
+        System.out.println("password: ");
+        client.setPassword(scanner.nextLine());
 
-        // client.storeFile("", "test.txt");
-        client.pullFile("", "test.txt");
+        while (true) {
+            System.out.println("Would you like to store or pull a file?");
+            String order = scanner.nextLine();
+            if (order.equals("pull")){
+                System.out.println("filename: ");
+                client.pullFile("", scanner.nextLine());
+            }
+            else if(order.equals("store")){
+                System.out.println("filename: ");
+                client.storeFile("", scanner.nextLine());
+            }
+        }
     }
 }
