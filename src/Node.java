@@ -310,8 +310,10 @@ public class Node {
     }
 
     private void addAddress(Datapackage datapackage) {
+        System.out.println("recieved add");
         Address address = (Address) datapackage.getPayload();
         if (address.getCluster() == this.cluster) {
+            System.out.println("adding");
             this.clusterNodes.add(address);
             return;
         }
