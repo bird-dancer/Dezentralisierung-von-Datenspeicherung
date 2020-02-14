@@ -14,6 +14,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +45,7 @@ public class Node {
     private Thread listeningThread;
     private StorageSystem serverData;
 
-    public Node(String startIp, int startPort)
+    public Node(String startIp, int startPort, int ownPort)
             throws FileNotFoundException, ClassNotFoundException, IOException, InterruptedException {
         // init
         this.clusterNodes = new ArrayList<>();
@@ -54,6 +55,7 @@ public class Node {
         this.serverData = new StorageSystem("", "serverData.data");
         // get ip
         this.ip = getCurrentIp();
+        this.port = ownPort;
         // load node data
         if (this.nodeData.get("id") == null) {
             this.id = generateId();
@@ -79,7 +81,7 @@ public class Node {
             }
         }, 0, 1000 * 60 * 5);
         // start server
-        startServer(8000);
+        startServer(this.port);
         // check ip every minute
 
     }
@@ -88,6 +90,7 @@ public class Node {
             throws UnknownHostException, IOException, ClassNotFoundException {
         System.out.println("join");
         Client client = new Client();
+        // might have problem
         Datapackage answer = client.sendDatapackage(startIp, startPort, new Datapackage(0, null, getAddress(), null, 0),
                 true);
         System.out.println(answer.getId());
@@ -146,7 +149,6 @@ public class Node {
     }
 
     private void startServer(int port) throws FileNotFoundException, ClassNotFoundException, IOException {
-        this.port = port;
         this.serverData = new StorageSystem("", "serverData.data");
         this.serverSocket = new ServerSocket(this.port);
 
@@ -212,18 +214,19 @@ public class Node {
         }
     }
 
-    private void helpReconfigure(Datapackage datapackage){
+    private void helpReconfigure(Datapackage datapackage) {
 
     }
 
     private void reConfigure() throws NoSuchAlgorithmException, IOException, ClassNotFoundException {
-        
+
         String controlHash = new Hash().hash(this.serverData);
         Datapackage answer;
         Client client = new Client();
-        for(Address add : this.clusterNodes){
-            answer = client.sendDatapackage(add.getIp(), 8000, new Datapackage(11, null, null, null, this.cluster), true);
-            if(!answer.getPayload().equals(controlHash)){
+        for (Address add : this.clusterNodes) {
+            answer = client.sendDatapackage(add.getIp(), 8000, new Datapackage(11, null, null, null, this.cluster),
+                    true);
+            if (!answer.getPayload().equals(controlHash)) {
 
             }
         }
@@ -231,10 +234,13 @@ public class Node {
 
     private void addStorage(Datapackage datapackage) throws FileNotFoundException, IOException {
         if (this.serverData.get(datapackage.getName()) == null) {
-            this.serverData.put(datapackage.getName(), datapackage.getPayload());
+            this.serverData.put(datapackage.getName(), datapackage);
+            System.out.println("new: " + datapackage.getName());
         } else if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner()
                 .equals(datapackage.getOwner())) {
+            System.out.println("add0");
             if (datapackage.getPayload() instanceof List) {
+                System.out.println("add1");
                 ((List<byte[]>) ((Datapackage) this.serverData.get(datapackage.getName())).getPayload())
                         .addAll((List<byte[]>) datapackage.getPayload());
             }
@@ -258,8 +264,11 @@ public class Node {
     }
 
     private void deleteServerData(Datapackage datapackage) throws NoSuchAlgorithmException {
-        String validation = new Hash().hash(datapackage.getName() + datapackage.getOwner());
-        if (((Datapackage) this.serverData.get(datapackage.getName())).getOwner().equals(validation))
+        if (this.serverData.get(datapackage.getName()) == null)
+            return;
+        String validation0 = new Hash().hash(datapackage.getName() + datapackage.getOwner());
+        Datapackage serverDatapackage = (Datapackage) this.serverData.get(datapackage.getName());
+        if (validation0.equals(serverDatapackage.getOwner()))
             this.serverData.remove(datapackage.getName());
     }
 
@@ -271,8 +280,11 @@ public class Node {
 
     private void pushData(Datapackage datapackage, Socket socket) throws ClassNotFoundException, IOException {
         System.out.println("push: " + (this.serverData.get(datapackage.getName()) == null));
-        new Client().sendDatapackage(socket, new Datapackage(-1, datapackage.getName(),
-                this.serverData.get(datapackage.getName()), null, this.cluster), false);
+        System.out.println("package name: " + datapackage.getName());
+        new Client().sendDatapackage(socket,
+                new Datapackage(-1, datapackage.getName(),
+                        ((Datapackage) this.serverData.get(datapackage.getName())).getPayload(), null, this.cluster),
+                false);
     }
 
     private void spreadData(Datapackage datapackage) throws ClassNotFoundException, UnknownHostException, IOException {
@@ -283,6 +295,7 @@ public class Node {
     }
 
     private void storeData(Datapackage datapackage) throws FileNotFoundException, IOException {
+        System.out.println("store");
         this.serverData.put(datapackage.getName(), datapackage);
         this.serverData.store();
     }
@@ -325,6 +338,7 @@ public class Node {
 
     private void integrateToCluster(Datapackage datapackage, Socket socket)
             throws ClassNotFoundException, UnknownHostException, IOException {
+        System.out.println("port: " + ((Address) datapackage.getPayload()).getPort());
         Client client = new Client();
         for (Address add : this.clusterNodes)
             client.sendDatapackage(add.getIp(), add.getPort(),
@@ -381,23 +395,29 @@ public class Node {
         Process process = Runtime.getRuntime().exec("ruby ip.rb");
         process.waitFor();
         BufferedReader processIn = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        return processIn.readLine();
+        return processIn.readLine().split("%")[0];
     }
 
-    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
+    public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,
+            InterruptedException, NoSuchAlgorithmException, InvalidKeyException, NoSuchPaddingException,
+            IllegalBlockSizeException, BadPaddingException {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Enter start ip: ");
         String startIp = scanner.nextLine();
-        if(startIp.equals("skip"))  startIp = null;
+        if (startIp.equals("skip"))
+            startIp = null;
 
-        Node node = new Node(startIp, 8000);
-        System.out.println(node.getCurrentIp());
-        System.out.println(node.id);
-        System.out.println(node.clusterNodes.get(0).getId());
+        Node node = new Node(startIp, 8000, 8000);
+        System.out.println("own ip: " + node.getCurrentIp());
+        System.out.println("own port: " + node.getAddress().getPort());
+        System.out.println("own id: " + node.id);
+        System.out.println(
+                "other ip: " + node.clusterNodes.get(0).getIp() + " other port: " + node.clusterNodes.get(0).getPort());
 
         Address add = node.getAddress();
         add.setPort(node.port + 1);
-        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port + 1, add);
+        Client client = new Client(node.clusterNodes, node.interNodes, node.cluster, node.totalLength, node.port + 1,
+                add);
         System.out.println("name: ");
         client.setUser(scanner.nextLine());
         System.out.println("password: ");
@@ -406,13 +426,12 @@ public class Node {
         while (true) {
             System.out.println("Would you like to store or pull a file?");
             String order = scanner.nextLine();
-            if (order.equals("pull")){
+            if (order.equals("pull")) {
                 System.out.println("filename: ");
                 client.pullFile("", scanner.nextLine());
-            }
-            else if(order.equals("store")){
+            } else if (order.equals("store")) {
                 System.out.println("filename: ");
-                client.storeFile("", scanner.nextLine());
+                client.storeFile("", scanner.nextLine(), node.serverData);
             }
         }
     }
