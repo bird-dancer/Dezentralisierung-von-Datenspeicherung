@@ -159,17 +159,25 @@ public class Client {
     public void storeFile(String fileLocation, String fileName, StorageSystem serverData)
             throws InvalidKeyException, ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException,
             NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
-
+        // data itself
         int location = (int) (Math.random() * totalLength);
         byte[] byteFile = Files.readAllBytes(Paths.get(fileLocation + fileName));
         String nameHash = nameHash(fileName);
-        Datapackage datapackage = new Datapackage(5, nameHash, new EncryptedObject(byteFile, this.passwordHash),
-                new Hash().hash(nameHash + generateOwner(fileName)), null, location);
-        sendSoftDatapackage(datapackage);
-
+        Datapackage datapackage;
+        if (location == this.currentCluster) {
+            datapackage = new Datapackage(4, nameHash, new EncryptedObject(byteFile, this.passwordHash),
+                    new Hash().hash(nameHash + generateOwner(fileName)), this.currentCluster);
+            for (Address add : this.clusterNodes) {
+                sendDatapackage(add.getIp(), add.getPort(), datapackage, false);
+            }
+        } else {
+            datapackage = new Datapackage(5, nameHash, new EncryptedObject(byteFile, this.passwordHash),
+                    new Hash().hash(nameHash + generateOwner(fileName)), null, location);
+            sendSoftDatapackage(datapackage);
+        }
 
         serverData.put(nameHash, datapackage);
-
+        // storage system
         List<byte[]> storageDatas = new ArrayList<byte[]>();
         storageDatas.add(new EncryptedObject(new StorageData(nameHash(fileName), contentHash(byteFile), location),
                 this.passwordHash).getEncryptedObject());
@@ -179,7 +187,7 @@ public class Client {
 
         for (Address add : this.clusterNodes)
             sendDatapackage(add.getIp(), add.getPort(), datapackage, false);
- 
+
         if (serverData.get(datapackage.getName()) == null) {
             serverData.put(datapackage.getName(), datapackage);
             System.out.println("n0");
@@ -248,7 +256,7 @@ public class Client {
 
     public void deleteFile(String fileName, int cluster)
             throws ClassNotFoundException, UnknownHostException, NoSuchAlgorithmException, IOException {
-        request(new Datapackage(10, nameHash(fileName), null, generateOwner(fileName), clientAddress, cluster));
+        sendSoftDatapackage(new Datapackage(10, nameHash(fileName), null, generateOwner(fileName), clientAddress, cluster));
     }
 
     public boolean pullFile(String fileLocation, String fileName, int cluster, String validationHash)

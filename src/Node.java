@@ -306,12 +306,13 @@ public class Node {
                 null, ((Address) datapackage.getPayload()).getCluster()), false);
     }
 
-    private void addAddress(Datapackage datapackage) {
+    private void addAddress(Datapackage datapackage) throws FileNotFoundException, IOException {
         System.out.println("recieved add");
         Address address = (Address) datapackage.getPayload();
         if (address.getCluster() == this.cluster) {
             System.out.println("adding");
             this.clusterNodes.add(address);
+            saveNode();
             return;
         }
         this.interNodes.add(address);
@@ -337,16 +338,17 @@ public class Node {
 
     private void integrateToCluster(Datapackage datapackage, Socket socket)
             throws ClassNotFoundException, UnknownHostException, IOException {
-        System.out.println("port: " + ((Address) datapackage.getPayload()).getPort());
+            Address address = (Address) datapackage.getPayload();
+        System.out.println("add: " + address);
         Client client = new Client();
         for (Address add : this.clusterNodes)
             client.sendDatapackage(add.getIp(), add.getPort(),
-                    new Datapackage(2, null, datapackage.getPayload(), null, this.cluster), false);
+                    new Datapackage(2, null, address, null, this.cluster), false);
         List<List<Address>> list = (List<List<Address>>) new ArrayList();
         list.add(this.clusterNodes);
         list.add(this.interNodes);
         client.sendDatapackage(socket, new Datapackage(this.id, null, list, null, this.cluster), false);
-        this.clusterNodes.add((Address) datapackage.getPayload());
+        this.clusterNodes.add(address);
         saveNode();
     }
 
@@ -412,6 +414,8 @@ public class Node {
         System.out.println("own id: " + node.id);
         System.out.println(
                 "other ip: " + node.clusterNodes.get(0).getIp() + " other port: " + node.clusterNodes.get(0).getPort());
+        //System.out.println(
+             //   "other ip2: " + node.clusterNodes.get(1).getIp() + " other port: " + node.clusterNodes.get(1).getPort());
 
         Address add = node.getAddress();
         add.setPort(node.port + 1);
@@ -423,7 +427,7 @@ public class Node {
         client.setPassword(scanner.nextLine());
 
         while (true) {
-            System.out.println("Would you like to store or pull a file?");
+            System.out.println("Would you like to store, delete or pull a file?");
             String order = scanner.nextLine();
             if (order.equals("pull")) {
                 System.out.println("filename: ");
@@ -431,6 +435,10 @@ public class Node {
             } else if (order.equals("store")) {
                 System.out.println("filename: ");
                 client.storeFile("", scanner.nextLine(), node.serverData);
+            }
+            else if (order.equals("delete")) {
+                System.out.println("filename: ");
+                client.deleteFile(scanner.nextLine(), node.cluster);
             }
         }
     }
