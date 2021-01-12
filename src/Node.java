@@ -51,7 +51,7 @@ public class Node {
         this.nodeData = new StorageSystem("", "nodeData.node");
         this.serverData = new StorageSystem("", "serverData.data");
         // get ip
-        this.ip = getCurrentIp();
+        this.ip = getCurrentIp(true);
         this.port = ownPort;
         // load node data
         if (this.nodeData.get("id") == null) {
@@ -114,7 +114,7 @@ public class Node {
     }
 
     private void refreshIp() throws IOException, InterruptedException, ClassNotFoundException {
-        String tempIp = getCurrentIp();
+        String tempIp = getCurrentIp(true);
         if (!this.ip.equals(tempIp)) {
             this.ip = tempIp;
             saveNode();
@@ -392,11 +392,18 @@ public class Node {
      * @throws IOException
      * @throws InterruptedException
      */
-    private String getCurrentIp() throws IOException, InterruptedException {
-        Process process = Runtime.getRuntime().exec("ruby ip.rb");
-        process.waitFor();
-        BufferedReader processIn = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        return processIn.readLine().split("%")[0];
+    private String getCurrentIp(boolean v6) throws SocketException {
+        Enumeration<NetworkInterface> netInts = NetworkInterface.getNetworkInterfaces();
+        for (NetworkInterface netInt : Collections.list(netInts)) {
+            if (netInt.isUp() && !netInt.isLoopback()) {
+                for (InetAddress inetAddress : Collections.list(netInt.getInetAddresses())) {
+                    if (inetAddress.isLoopbackAddress() || inetAddress.isLinkLocalAddress() || inetAddress.isMulticastAddress())  continue;
+                    if (v6 && inetAddress instanceof Inet6Address)  return inetAddress.getHostAddress();
+                    if (!v6 && inetAddress instanceof InetAddress)  return inetAddress.getHostAddress().split("%")[0];
+                }
+            }
+        }
+        return null;
     }
 
     public static void main(String[] args) throws FileNotFoundException, ClassNotFoundException, IOException,
@@ -409,7 +416,7 @@ public class Node {
             startIp = null;
 
         Node node = new Node(startIp, 8000, 8000);
-        System.out.println("own ip: " + node.getCurrentIp());
+        System.out.println("own ip: " + node.getCurrentIp(true));
         System.out.println("own port: " + node.getAddress().getPort());
         System.out.println("own id: " + node.id);
         System.out.println(
