@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Enumeration;
+import java.net.InetAddress;
+import java.net.Inet6Address;
+import java.net.NetworkInterface;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
